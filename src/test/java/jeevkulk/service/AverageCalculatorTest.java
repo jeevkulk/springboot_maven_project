@@ -22,9 +22,8 @@ public class AverageCalculatorTest {
     @Test
     public void testDoProcessSuccess() throws Exception {
 
-        averageCalculator = new AverageCalculator();
         Map<String, BigDecimal> map = averageCalculator.doProcess();
-        String testKey = "UK - A";
+        String testKey = "IRL-Aa";
         Assert.assertTrue("Map does not contain key for test result"+testKey, map.containsKey(testKey));
     }
 }
