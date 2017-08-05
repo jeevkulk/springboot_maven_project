@@ -9,10 +9,13 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class AverageCalculator implements IService {
@@ -27,7 +30,34 @@ public class AverageCalculator implements IService {
     @Override
     public Map<String, BigDecimal> doProcess() throws Exception {
         List<CreditRating> list = dataLoader.readFile();
+        Map<String, BigDecimal> avgMap = calculateAverageUsingMap(list);
+        Map<String, Map<String, Double>> resultMap = calculateAverageUsingStreams(list);
+        return avgMap;
+    }
 
+    private Map<String, Map<String, Double>> calculateAverageUsingStreams(List<CreditRating> list) {
+        logger.info("*** Using Streams ***");
+        Map<String, Map<String, Double>> resultMap = list.stream().collect(
+                Collectors.groupingBy(
+                        creditRating -> {
+                            String keyStr = (creditRating.getCountry() != null && !"".equals(creditRating.getCountry())) ? creditRating.getCountry() :  creditRating.getCity();
+                            return keyStr;
+                        },
+                        Collectors.groupingBy(
+                                CreditRating::getCreditRating, Collectors.averagingDouble((creditRating) -> getAmountInEuro(creditRating).doubleValue())
+                        )
+                )
+        );
+        resultMap.forEach((s, stringDoubleMap) -> {
+            stringDoubleMap.forEach((s1, aDouble) -> {
+                logger.info("keyStr = "+s+"-"+s1+" = "+aDouble);
+            });
+        });
+        return resultMap;
+    }
+
+    private Map<String, BigDecimal> calculateAverageUsingMap(List<CreditRating> list) {
+        logger.info("*** Using Maps ***");
         Map<String, BigDecimal> sumMap = new HashMap<>();
         Map<String, BigDecimal> avgMap = new HashMap<>();
         Map<String, Integer> countMap = new HashMap<>();
@@ -41,20 +71,16 @@ public class AverageCalculator implements IService {
                 Integer count = countMap.get(key);
                 countMap.put(key, ++count);
             } else {
-                sumMap.put(key, cr.getAmount());
+                sumMap.put(key, getAmountInEuro(cr));
                 countMap.put(key, 1);
             }
         }
         Set<String> set = sumMap.keySet();
         for(String keyStr : set) {
-            BigDecimal average = sumMap.get(keyStr).divide(new BigDecimal(countMap.get(keyStr)));
+            BigDecimal average = sumMap.get(keyStr).divide(new BigDecimal(countMap.get(keyStr)), 2, RoundingMode.HALF_UP);
             avgMap.put(keyStr, average);
-            logger.info("keyStr "+keyStr+ "   Average="+average);
+            logger.info("keyStr = "+keyStr+ " = "+average);
         }
-
-        //using streams
-        //list.stream().collect(Collectors.groupingBy((creditRating) -> creditRating.getCreditRating()));
-
         return avgMap;
     }
 
@@ -63,16 +89,17 @@ public class AverageCalculator implements IService {
     }
 
     private BigDecimal getAmountInEuro(CreditRating cr) {
-        return cr.getAmount().multiply(euroConversionMap.get(cr.getCurrency()));
+        return cr.getAmount().multiply(euroConversionMap.get(cr.getCurrency()), new MathContext(2));
     }
 
     @PostConstruct
     private void getCurrencyConversionRates() {
         euroConversionMap = new HashMap<>();
+        MathContext mc = new MathContext(2);
 
-        BigDecimal usdToEuroConversionRate = new BigDecimal(1).divide(new BigDecimal(1.35), BigDecimal.ROUND_FLOOR);
-        BigDecimal gbpToEuroConversionRate = usdToEuroConversionRate.multiply(new BigDecimal(1.654));
-        BigDecimal chfToEuroConversionRate = usdToEuroConversionRate.multiply(new BigDecimal(1.1));
+        BigDecimal usdToEuroConversionRate = new BigDecimal(1).divide(new BigDecimal(1.35), 2, RoundingMode.HALF_UP);
+        BigDecimal gbpToEuroConversionRate = usdToEuroConversionRate.multiply(new BigDecimal(1.654), mc);
+        BigDecimal chfToEuroConversionRate = usdToEuroConversionRate.multiply(new BigDecimal(1.1), mc);
 
         euroConversionMap.put("USD", usdToEuroConversionRate);
         euroConversionMap.put("GBP", gbpToEuroConversionRate);

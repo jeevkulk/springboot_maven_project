@@ -28,7 +28,6 @@ public class DataLoader {
         FileReader fileReader = null;
         BufferedReader br = null;
         try {
-            logger.info("dataFileName="+dataFileName);
             ClassLoader classLoader = getClass().getClassLoader();
             file = new File(classLoader.getResource(dataFileName).getFile());
             fileReader = new java.io.FileReader(file);
@@ -38,7 +37,6 @@ public class DataLoader {
             while((i = br.read()) != -1) {
                 String data = br.readLine();
                 if(!headerLine) {
-                    logger.info(data);
                     CreditRating cr = loadDomain(data);
                     list.add(cr);
                 }
